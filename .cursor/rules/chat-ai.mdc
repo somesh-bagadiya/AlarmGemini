@@ -1,0 +1,28 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Chat & Gemini Integration Guidelines
+
+This rule explains how the text-chat feature works and where Gemini API logic lives. Reference it when touching anything in the `ai` or `chat` packages.
+
+## Key Files
+- [GeminiService.kt](mdc:app/src/main/java/com/example/alarmgemini/ai/GeminiService.kt): Thin wrapper around the Google Gemini SDK.  Reads the API key from `BuildConfig.GEMINI_API_KEY`, builds a `GenerativeModel` (`modelName = "gemini-2.5-flash-preview-05-20"`), and exposes a suspend `ask(prompt)` that returns `Result<String>`.
+- [SimpleNlp.kt](mdc:app/src/main/java/com/example/alarmgemini/ai/SimpleNlp.kt): Regex fallback that extracts a single `LocalTime` from free-form text when Gemini doesn't return a structured result.
+- [ChatMessage.kt](mdc:app/src/main/java/com/example/alarmgemini/chat/ChatMessage.kt): POJO representing a single message plus `Sender` enum (USER or AI).
+- [ChatViewModel.kt](mdc:app/src/main/java/com/example/alarmgemini/chat/ChatViewModel.kt): Keeps a `MutableStateFlow<List<ChatMessage>>`, forwards user text to `GeminiService`, pipes the response back into the list, and invokes `SimpleNlp` to detect alarm times.
+- [ChatScreen.kt](mdc:app/src/main/java/com/example/alarmgemini/chat/ChatScreen.kt): Compose UI that displays the conversation, allows sending messages, and provides a keyboard FAB in the Alarm screen.
+
+## Behaviors to Preserve
+1. **Safe API key check**: `GeminiService` must return a failure with a clear error message when the key is blank.
+2. **Error surfacing**: `ChatViewModel` converts any caught exception into a visible chat bubble starting with `"Error:"` so users get diagnostics.
+3. **Model name stability**: Until we purposely upgrade, keep `modelName` in sync across code and documentation.
+4. **Reactive UI**: `messages` is a `StateFlow`; `ChatScreen` must collect it via `collectAsState()` so that new messages appear automatically.
+5. **LocalTime extraction**: Whenever `sendMessage()` succeeds, it calls the callback with any `LocalTime` returned by `SimpleNlp` so the alarm layer can act.
+
+## Future Extensions
+- Replace regex parsing with Gemini **function-calling/MCP tools** so the model can respond with structured JSON (`create_alarm`, `delete_alarm`).
+- Persist conversation history (Room or local cache) so the model can maintain longer context windows.
+- Add streaming responses once the Gemini Android SDK exposes the Live API.
+

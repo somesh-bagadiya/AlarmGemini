@@ -1,0 +1,82 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# AlarmGemini - Smart AI Alarm App
+
+## Project Overview
+AlarmGemini is an intelligent alarm clock app where users interact entirely through natural language chat with an AI assistant that manages their sleep schedule intelligently.
+
+## Technical Specifications
+- **Target SDK**: 35
+- **Min SDK**: 24 
+- **Compile SDK**: 35
+- **Language**: Kotlin
+- **UI Framework**: Jetpack Compose with Material Design 3
+- **AI Integration**: Google Gemini API
+- **Architecture**: MVVM with Repository pattern
+
+## Key Dependencies
+- `androidx.compose.bom` - Jetpack Compose Bill of Materials
+- `androidx.material3` - Material Design 3 components
+- `generativeai` - Google Gemini AI SDK
+- Room Database (planned for Phase 2)
+- Firebase (planned for Phase 3)
+
+## Project Structure
+The app follows this package structure:
+- `ai/` - Gemini API integration and NLP processing
+- `alarm/` - Core alarm functionality with AlarmManager
+- `core/` - Shared utilities and base classes
+- `data/` - Repository pattern with local and remote data sources
+- `features/` - UI screens and ViewModels
+- `services/` - Background services for alarms
+- `ui/` - Reusable Compose components and theming
+
+## Current Implementation Status
+### Phase 1 (In Progress)
+- ✅ Project setup with Material 3 and Jetpack Compose
+- ✅ Basic alarm scheduling with AlarmManager
+- ⏳ Gemini API integration for simple NLP commands
+- ⏳ Basic chat UI for text input and AI responses
+
+### Upcoming Phases
+- **Phase 2**: Enhanced NLP and Room database integration
+- **Phase 3**: Firebase sync and basic intelligence features
+- **Phase 4**: Advanced AI behavior and contextual adjustments
+- **Phase 5**: Polish, testing, and optimization
+
+## Core Features
+1. **Natural Language Alarm Setting** - Users can set alarms using conversational phrases like "Set 5 alarms at 6:00 AM with 5-minute gaps"
+2. **Chat Interface** - Text-based conversation with AI assistant
+3. **Intelligent Proactive Behavior** - Smart suggestions based on user patterns and external factors
+4. **Agentic AI System** - Autonomous decisions and recommendations
+
+## Key Files
+- [AndroidManifest.xml](mdc:app/src/main/AndroidManifest.xml) - App permissions and component declarations
+- [build.gradle.kts](mdc:app/build.gradle.kts) - App-level dependencies and configuration
+- [plan.md](mdc:app/plan.md) - Comprehensive development guide and roadmap
+- [MainActivity.kt](mdc:app/src/main/java/com/example/alarmgemini/MainActivity.kt) - Main entry point
+- [AlarmScheduler.kt](mdc:app/src/main/java/com/example/alarmgemini/alarm/AlarmScheduler.kt) - Core alarm scheduling logic
+- [AlarmReceiver.kt](mdc:app/src/main/java/com/example/alarmgemini/alarm/AlarmReceiver.kt) - Handles alarm events
+
+## Required Permissions
+- `POST_NOTIFICATIONS` - For alarm notifications on Android 13+
+- `SCHEDULE_EXACT_ALARM` - For precise alarm timing
+- `RECEIVE_BOOT_COMPLETED` - To reschedule alarms after device reboot
+
+## Development Guidelines
+- Use Jetpack Compose for all UI components
+- Follow Material 3 design principles
+- Implement proper error handling for AI API calls
+- Ensure offline functionality for core alarm features
+- Follow the repository pattern for data access
+- Use ViewModels for UI state management
+
+## AI Integration Notes
+- All AI processing uses Google Gemini API
+- API keys must be stored securely (not in version control)
+- Implement proper quota monitoring and error handling
+- Plan for iterative prompt engineering using Firebase Remote Config
+

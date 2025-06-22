@@ -1,0 +1,32 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Alarm Core Guidelines
+
+This rule summarizes how alarms should work and which files are involved. Reference it when editing alarm functionality, UI toggles, or scheduling logic.
+
+## Key Files
+- [AlarmScheduler.kt](mdc:app/src/main/java/com/example/alarmgemini/alarm/AlarmScheduler.kt): Schedules/cancels alarms with unique IDs using `AlarmManager.setExactAndAllowWhileIdle`.
+- [AlarmReceiver.kt](mdc:app/src/main/java/com/example/alarmgemini/alarm/AlarmReceiver.kt): Handles alarm firing, shows high-priority notification and plays default alarm sound.
+- [AlarmListViewModel.kt](mdc:app/src/main/java/com/example/alarmgemini/AlarmListViewModel.kt): In-memory list of `AlarmUiModel`, responsible for toggling alarms and propagating schedule/cancel to `AlarmScheduler`.
+- [AlarmListScreen.kt](mdc:app/src/main/java/com/example/alarmgemini/AlarmListScreen.kt): Compose UI that displays alarms, lets user enable/disable, and pick a time via `TimePickerDialog`.
+
+## Behaviors to Preserve
+1. **Unique IDs**: Every alarm must be scheduled with a stable `id` so that it can be cancelled or rescheduled without collisions.
+2. **Toggle Logic**: Enabling an alarm schedules it, disabling cancels it.
+3. **Time Edits**: Changing the time of an enabled alarm must reschedule immediately.
+4. **Exact Timing**: Use `setExactAndAllowWhileIdle` with `RTC_WAKEUP` for precise wake-ups.
+5. **Notification & Sound**: `AlarmReceiver` must display a notification and play the default alarm ringtone.
+6. **Permissions**: Handle `SCHEDULE_EXACT_ALARM` gracefully; if a `SecurityException` is thrown, surface guidance to the user.
+7. **Multiple Alarms**: The scheduler must support concurrent alarms without interference.
+
+## Future Tasks (Phase 2+)
+- Persist alarms in Room so they survive app restarts.
+- Re-schedule alarms after reboot via `BOOT_COMPLETED` broadcast.
+- Add snooze & dismiss actions in the notification.
+- Replace in-memory `_alarms` list with repository backed by Room.
+
+Follow these points whenever implementing or refactoring alarm-related code.
+
