@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.example.alarmgemini.chat.ChatScreen
+import com.example.alarmgemini.chat.VoiceChatScreen
 import com.example.alarmgemini.ui.theme.AlarmGeminiTheme
 
 class MainActivity : ComponentActivity() {
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             AlarmGeminiTheme {
                 var showChatPopup by rememberSaveable { mutableStateOf(false) }
+                var showVoicePopup by rememberSaveable { mutableStateOf(false) }
 
                 // A surface container using the 'background' color from the theme
                 Scaffold(
@@ -63,13 +65,22 @@ class MainActivity : ComponentActivity() {
                     content = { inner ->
                         Surface(modifier = Modifier.fillMaxSize().padding(inner)) {
                             AlarmListScreen(
-                                onOpenChat = { showChatPopup = true }
+                                onOpenChat = { showChatPopup = true },
+                                onOpenVoice = { showVoicePopup = true }
                             )
                             
                             // Chat popup overlay
                             if (showChatPopup) {
                                 ChatPopupOverlay(
                                     onDismiss = { showChatPopup = false }
+                                )
+                            }
+                            
+                            // Voice chat popup overlay
+                            if (showVoicePopup) {
+                                VoicePopupOverlay(
+                                    viewModel = viewModel,
+                                    onDismiss = { showVoicePopup = false }
                                 )
                             }
                         }
@@ -144,6 +155,43 @@ private fun ChatPopupOverlay(onDismiss: () -> Unit) {
                     ChatScreen()
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun VoicePopupOverlay(
+    viewModel: MainViewModel,
+    onDismiss: () -> Unit
+) {
+    // Get the alarm view model from the main screen
+    val alarmVm: AlarmListViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    
+    // Semi-transparent background overlay for voice interface
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .clickable { onDismiss() }
+    ) {
+        // Full-screen voice interface with glassmorphism
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .fillMaxSize(0.9f)
+                .align(Alignment.Center)
+                .clickable { /* Prevent dismissing when clicking inside */ },
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            // Voice chat interface with real voice integration
+            VoiceChatScreen(
+                alarmVm = alarmVm,
+                onClose = onDismiss
+            )
         }
     }
 }

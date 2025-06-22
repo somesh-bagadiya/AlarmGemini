@@ -19,3 +19,10 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Fix for AutoValue MethodHandle issues with API < 26
+# Based on: https://github.com/typetools/checker-framework/issues/4232
+-dontwarn java.lang.invoke.MethodHandle
+-dontwarn java.lang.invoke.MethodHandles*
+-keep class autovalue.shaded.** { *; }
+-dontwarn autovalue.shaded.com.google.common.hash.**

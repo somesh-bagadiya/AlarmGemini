@@ -89,7 +89,13 @@ class ChatViewModel : ViewModel() {
                 }
             }
             
-            // Return parsed time for immediate UI updates if it's an alarm set command
+            // For agentic commands, try immediate parsing for UI feedback
+            val agenticCommand = SimpleNlp.parseAgenticCommand(text)
+            if (agenticCommand != null) {
+                return agenticCommand.alarms.firstOrNull()
+            }
+            
+            // Return parsed time for immediate UI updates if it's a simple alarm set command
             return if (text.lowercase().contains("set") && text.lowercase().contains("alarm")) {
                 SimpleNlp.tryParseAlarm(text)
             } else {
@@ -109,6 +115,28 @@ class ChatViewModel : ViewModel() {
         if (apiKey.isBlank()) return@withContext "Gemini API key not configured"
         
         try {
+            // First, try to execute agentic command immediately
+            val agenticCommand = SimpleNlp.parseAgenticCommand(text)
+            if (agenticCommand != null) {
+                Log.d("ChatViewModel", "Found agentic command in user input: ${agenticCommand.type}")
+                val createdIds = mutableListOf<Int>()
+                
+                agenticCommand.alarms.forEach { alarmTime ->
+                    val id = alarmVm.addAlarm(alarmTime, emptyList())
+                    createdIds.add(id)
+                }
+                
+                val alarmSummary = agenticCommand.alarms.mapIndexed { index, time ->
+                    "#${createdIds[index]}: ${time.format(DateTimeFormatter.ofPattern("h:mm a"))}"
+                }.joinToString(", ")
+                
+                return@withContext "Perfect! I understand you want: ${agenticCommand.description}\n\n" +
+                    "🤖 **Agentic Result:**\n" +
+                    "✅ Created ${agenticCommand.alarms.size} alarms\n" +
+                    "📋 ${agenticCommand.description}\n" +
+                    "🔔 Alarms: $alarmSummary"
+            }
+            
             // Enhanced agentic prompt with system time awareness
             val currentTime = SimpleNlp.getCurrentSystemTime()
             val prompt = """
@@ -130,14 +158,9 @@ class ChatViewModel : ViewModel() {
                 - What times they'll be set for
                 - Any intelligent spacing or intervals
                 
-                For complex multi-alarm commands, use these action formats:
-                ACTION: SET_MULTI_ALARM [count] [start_time] [interval_minutes]
-                ACTION: SET_BACKUP_ALARMS [interval_minutes] [start_time?]
-                ACTION: SET_ALARM [time]
-                ACTION: DELETE_ALARM [id]
-                ACTION: DELETE_ALL_EXCEPT_LAST
-                ACTION: DELETE_ALL
-                ACTION: NONE
+                For simple single alarm commands, use: ACTION: SET_ALARM [time]
+                For complex commands, I will handle them automatically.
+                For deletions, use: ACTION: DELETE_ALARM [id] or ACTION: DELETE_ALL
                 
                 Be conversational and explain what you're doing intelligently.
             """.trimIndent()
@@ -179,8 +202,8 @@ class ChatViewModel : ViewModel() {
             
             Log.d("ChatViewModel", "Direct Gemini API response: $aiResponse")
             
-            // Parse AI response for actions
-            return@withContext executeAction(aiResponse, alarmVm)
+            // Parse AI response for actions, passing the original user command
+            return@withContext executeActionWithUserCommand(aiResponse, text, alarmVm)
             
         } catch (e: Exception) {
             Log.e("ChatViewModel", "Direct Gemini API error", e)
@@ -188,14 +211,15 @@ class ChatViewModel : ViewModel() {
         }
     }
     
-    private fun executeAction(aiResponse: String, alarmVm: com.example.alarmgemini.AlarmListViewModel): String {
-        // First try agentic command parsing
-        val agenticCommand = SimpleNlp.parseAgenticCommand(aiResponse)
-        if (agenticCommand != null) {
-            return executeAgenticCommand(agenticCommand, alarmVm, aiResponse)
-        }
+    private fun executeActionWithUserCommand(
+        aiResponse: String, 
+        userCommand: String,
+        alarmVm: com.example.alarmgemini.AlarmListViewModel
+    ): String {
+        Log.d("ChatViewModel", "Executing action for AI response: $aiResponse")
+        Log.d("ChatViewModel", "Original user command: $userCommand")
         
-        // Fallback to traditional action parsing
+        // Fallback to traditional action parsing in AI response
         val actionPattern = Regex("ACTION: (\\w+)(?:\\s+(.+))?")
         val actionMatch = actionPattern.find(aiResponse)
         
@@ -203,15 +227,11 @@ class ChatViewModel : ViewModel() {
             val action = actionMatch.groupValues[1]
             val parameter = actionMatch.groupValues[2]
             
+            Log.d("ChatViewModel", "Found action: $action with parameter: $parameter")
+            
             when (action) {
-                "SET_MULTI_ALARM" -> {
-                    return handleMultiAlarmAction(parameter, alarmVm, aiResponse, actionPattern)
-                }
-                "SET_BACKUP_ALARMS" -> {
-                    return handleBackupAlarmsAction(parameter, alarmVm, aiResponse, actionPattern)
-                }
                 "SET_ALARM" -> {
-                    val time = SimpleNlp.tryParseAlarm(parameter)
+                    val time = SimpleNlp.tryParseAlarm(parameter.ifEmpty { userCommand })
                     if (time != null) {
                         val id = alarmVm.addAlarm(time, emptyList())
                         val timeStr = time.format(DateTimeFormatter.ofPattern("h:mm a"))
@@ -226,10 +246,6 @@ class ChatViewModel : ViewModel() {
                         return aiResponse.replace(actionPattern, "\n\n$status alarm #$id")
                     }
                 }
-                "DELETE_ALL_EXCEPT_LAST" -> {
-                    val deletedCount = alarmVm.deleteAllExceptLast()
-                    return aiResponse.replace(actionPattern, "\n\n✅ Deleted $deletedCount alarms, kept the most recent one")
-                }
                 "DELETE_ALL" -> {
                     val deletedCount = alarmVm.deleteAllAlarms()
                     return aiResponse.replace(actionPattern, "\n\n✅ Deleted all $deletedCount alarms")
@@ -237,98 +253,19 @@ class ChatViewModel : ViewModel() {
             }
         }
         
+        // If no action found, try to parse the user command for simple commands
+        val simpleTime = SimpleNlp.tryParseAlarm(userCommand)
+        if (simpleTime != null && userCommand.lowercase().contains("set") && userCommand.lowercase().contains("alarm")) {
+            val id = alarmVm.addAlarm(simpleTime, emptyList())
+            val timeStr = simpleTime.format(DateTimeFormatter.ofPattern("h:mm a"))
+            return aiResponse + "\n\n🤖 **Agentic Result:**\n✅ Alarm set for $timeStr (ID: #$id)"
+        }
+        
         // Return AI response without action markers
         return aiResponse.replace(actionPattern, "").trim()
     }
 
-    private fun executeAgenticCommand(
-        command: SimpleNlp.AgenticCommand, 
-        alarmVm: com.example.alarmgemini.AlarmListViewModel, 
-        aiResponse: String
-    ): String {
-        val createdIds = mutableListOf<Int>()
-        
-        command.alarms.forEach { alarmTime ->
-            val id = alarmVm.addAlarm(alarmTime, emptyList())
-            createdIds.add(id)
-        }
-        
-        val alarmSummary = command.alarms.mapIndexed { index, time ->
-            "#${createdIds[index]}: ${time.format(DateTimeFormatter.ofPattern("h:mm a"))}"
-        }.joinToString(", ")
-        
-        val actionMarker = Regex("ACTION: \\w+.*")
-        return aiResponse.replace(actionMarker, "") + 
-            "\n\n🤖 **Agentic Result:**\n" +
-            "✅ Created ${command.alarms.size} alarms\n" +
-            "📋 ${command.description}\n" +
-            "🔔 Alarms: $alarmSummary"
-    }
 
-    private fun handleMultiAlarmAction(
-        parameter: String, 
-        alarmVm: com.example.alarmgemini.AlarmListViewModel, 
-        aiResponse: String, 
-        actionPattern: Regex
-    ): String {
-        val parts = parameter.split(" ")
-        if (parts.size >= 3) {
-            val count = parts[0].toIntOrNull() ?: return aiResponse
-            val startTimeStr = parts[1]
-            val interval = parts[2].toIntOrNull() ?: return aiResponse
-            
-            val startTime = SimpleNlp.tryParseAlarm(startTimeStr) ?: return aiResponse
-            val createdIds = mutableListOf<Int>()
-            
-            repeat(count) { i ->
-                val alarmTime = startTime.plusMinutes((i * interval).toLong())
-                val id = alarmVm.addAlarm(alarmTime, emptyList())
-                createdIds.add(id)
-            }
-            
-            val alarmSummary = createdIds.mapIndexed { index, id ->
-                val time = startTime.plusMinutes((index * interval).toLong())
-                "#$id: ${time.format(DateTimeFormatter.ofPattern("h:mm a"))}"
-            }.joinToString(", ")
-            
-            return aiResponse.replace(actionPattern, "\n\n✅ Created $count alarms with ${interval}min intervals\n🔔 $alarmSummary")
-        }
-        return aiResponse
-    }
-
-    private fun handleBackupAlarmsAction(
-        parameter: String, 
-        alarmVm: com.example.alarmgemini.AlarmListViewModel, 
-        aiResponse: String, 
-        actionPattern: Regex
-    ): String {
-        val parts = parameter.split(" ")
-        if (parts.isNotEmpty()) {
-            val interval = parts[0].toIntOrNull() ?: return aiResponse
-            val startTime = if (parts.size > 1) {
-                SimpleNlp.tryParseAlarm(parts[1]) ?: LocalTime.now().plusMinutes(5)
-            } else {
-                LocalTime.now().plusMinutes(5)
-            }
-            
-            val count = 3 // Default backup count
-            val createdIds = mutableListOf<Int>()
-            
-            repeat(count) { i ->
-                val alarmTime = startTime.plusMinutes((i * interval).toLong())
-                val id = alarmVm.addAlarm(alarmTime, emptyList())
-                createdIds.add(id)
-            }
-            
-            val alarmSummary = createdIds.mapIndexed { index, id ->
-                val time = startTime.plusMinutes((index * interval).toLong())
-                "#$id: ${time.format(DateTimeFormatter.ofPattern("h:mm a"))}"
-            }.joinToString(", ")
-            
-            return aiResponse.replace(actionPattern, "\n\n✅ Created $count backup alarms every ${interval} minutes\n🔔 $alarmSummary")
-        }
-        return aiResponse
-    }
     
     private fun getCurrentAlarmsInfo(alarmVm: com.example.alarmgemini.AlarmListViewModel): String {
         val alarms = alarmVm.alarms.value

@@ -18,9 +18,9 @@ import android.util.Log
  */
 object SimpleNlp {
 
-    // Multi-alarm patterns: "set 5 alarms in 5 minutes", "create 3 alarms starting at 6 AM with 10 minute gaps"
+    // Multi-alarm patterns: "set 5 alarms in 5 minutes", "create 3 alarms starting at 6 AM with 10 minute gaps", "set 2 alarms 5 mins apart at 10 am"
     private val multiAlarmRegex = Pattern.compile(
-        """(?:set|create)\s+(\d+)\s+alarms?\s+(?:(?:in\s+(\d+)\s+(?:minute|minutes|min|mins))|(?:starting\s+at\s+(.+?)\s+with\s+(\d+)\s+(?:minute|minutes|min|mins)\s+(?:gap|gaps|interval|intervals)?))""",
+        """(?:set|create)\s+(\d+)\s+alarms?\s+(?:(?:in\s+(\d+)\s+(?:minute|minutes|min|mins))|(?:starting\s+at\s+(.+?)\s+with\s+(\d+)\s+(?:minute|minutes|min|mins)\s+(?:gap|gaps|interval|intervals)?)|(?:(\d+)\s+(?:minute|minutes|min|mins)\s+apart\s+at\s+(.+)))""",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -64,19 +64,26 @@ object SimpleNlp {
      */
     fun parseAgenticCommand(text: String): AgenticCommand? {
         val cleanText = text.lowercase(Locale.US)
-        Log.d("SimpleNlp", "Parsing agentic command: $cleanText")
+        Log.d("SimpleNlp", "Parsing agentic command: '$cleanText'")
         
         // Check for multi-alarm commands first
         val multiAlarm = tryParseMultiAlarm(cleanText)
-        if (multiAlarm != null) return multiAlarm
+        if (multiAlarm != null) {
+            Log.d("SimpleNlp", "Successfully parsed multi-alarm: ${multiAlarm.description}")
+            return multiAlarm
+        }
         
         // Check for backup alarm patterns
         val backupAlarm = tryParseBackupAlarms(cleanText)
-        if (backupAlarm != null) return backupAlarm
+        if (backupAlarm != null) {
+            Log.d("SimpleNlp", "Successfully parsed backup alarm: ${backupAlarm.description}")
+            return backupAlarm
+        }
         
         // Fallback to single alarm
         val singleTime = tryParseAlarm(cleanText)
         if (singleTime != null) {
+            Log.d("SimpleNlp", "Fallback to single alarm: ${singleTime.format(DateTimeFormatter.ofPattern("h:mm a"))}")
             return AgenticCommand(
                 type = CommandType.SINGLE_ALARM,
                 alarms = listOf(singleTime),
@@ -84,6 +91,7 @@ object SimpleNlp {
             )
         }
         
+        Log.d("SimpleNlp", "No agentic command found in: '$cleanText'")
         return null
     }
 
@@ -91,10 +99,16 @@ object SimpleNlp {
      * Parse multi-alarm commands like "set 5 alarms in 5 minutes"
      */
     private fun tryParseMultiAlarm(text: String): AgenticCommand? {
+        Log.d("SimpleNlp", "Trying to parse multi-alarm from: '$text'")
         val matcher = multiAlarmRegex.matcher(text)
-        if (!matcher.find()) return null
+        if (!matcher.find()) {
+            Log.d("SimpleNlp", "Multi-alarm regex did not match")
+            return null
+        }
 
         val count = matcher.group(1)?.toIntOrNull() ?: return null
+        
+        Log.d("SimpleNlp", "Multi-alarm match groups: count=$count, group2=${matcher.group(2)}, group3=${matcher.group(3)}, group4=${matcher.group(4)}, group5=${matcher.group(5)}, group6=${matcher.group(6)}")
         
         return when {
             matcher.group(2) != null -> {
@@ -128,6 +142,23 @@ object SimpleNlp {
                     type = CommandType.MULTI_ALARM_SEQUENCE,
                     alarms = alarms,
                     description = "$count alarms starting at ${startTime.format(DateTimeFormatter.ofPattern("h:mm a"))} with ${interval}min intervals",
+                    intervals = List(count - 1) { interval }
+                )
+            }
+            matcher.group(5) != null && matcher.group(6) != null -> {
+                // Pattern: "set 2 alarms 5 mins apart at 10 am"
+                val interval = matcher.group(5)!!.toInt()
+                val startTimeStr = matcher.group(6)!!
+                val startTime = tryParseAbsoluteTime(startTimeStr) ?: return null
+                
+                val alarms = (0 until count).map { i ->
+                    startTime.plusMinutes((i * interval).toLong())
+                }
+                
+                AgenticCommand(
+                    type = CommandType.MULTI_ALARM_SEQUENCE,
+                    alarms = alarms,
+                    description = "$count alarms ${interval} minutes apart starting at ${startTime.format(DateTimeFormatter.ofPattern("h:mm a"))}",
                     intervals = List(count - 1) { interval }
                 )
             }

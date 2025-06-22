@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -40,7 +41,8 @@ import androidx.compose.material3.AssistChipDefaults
 @Composable
 fun AlarmListScreen(
     viewModel: AlarmListViewModel = viewModel(),
-    onOpenChat: () -> Unit = {}
+    onOpenChat: () -> Unit = {},
+    onOpenVoice: () -> Unit = {}
 ) {
     val alarms by viewModel.alarms.collectAsState()
     var showAddSheet by remember { mutableStateOf(false) }
@@ -48,9 +50,19 @@ fun AlarmListScreen(
     Scaffold(
         floatingActionButton = {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.SmallFloatingActionButton(onClick = onOpenChat) {
-                    Icon(Icons.Default.Keyboard, contentDescription = "Chat")
+                // Voice Assistant Button with Gemini 2.0 highlighting
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = onOpenVoice,
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                ) {
+                    Icon(Icons.Default.Mic, contentDescription = "Voice Assistant (Gemini 2.0)")
                 }
+                // Text Chat Button  
+                androidx.compose.material3.SmallFloatingActionButton(onClick = onOpenChat) {
+                    Icon(Icons.Default.Keyboard, contentDescription = "Text Chat")
+                }
+                // Add Alarm Button
                 FloatingActionButton(onClick = { showAddSheet = true }) {
                     Icon(Icons.Default.Add, contentDescription = "Add alarm")
                 }

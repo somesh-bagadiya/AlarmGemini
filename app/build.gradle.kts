@@ -38,6 +38,19 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
+    
+    // Fix for AutoValue MethodHandle compatibility issues with API < 26
+    // Based on: https://github.com/typetools/checker-framework/issues/4232
+    configurations.all {
+        resolutionStrategy {
+            eachDependency {
+                if (requested.group == "com.google.auto.value") {
+                    useVersion("1.9") // Use older version compatible with API 24+
+                    because("Avoid MethodHandle issues with min API < 26")
+                }
+            }
+        }
+    }
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -59,6 +72,10 @@ android {
             excludes += "/META-INF/*.kotlin_module"
             excludes += "/META-INF/INDEX.LIST"
             excludes += "mozilla/public-suffix-list.txt"
+        }
+        // Fix for MethodHandle issues with AutoValue and min API < 26
+        dex {
+            useLegacyPackaging = true
         }
     }
 }
@@ -82,12 +99,20 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    implementation("androidx.compose.material:material-icons-extended")
+    
+    // Material Icons with AutoValue exclusion to avoid MethodHandle issues
+    implementation("androidx.compose.material:material-icons-extended") {
+        exclude(group = "com.google.auto.value", module = "auto-value")
+        exclude(group = "com.google.auto.value", module = "auto-value-annotations")
+    }
+    
     testImplementation("org.robolectric:robolectric:4.11.1")
     testImplementation("androidx.test:core-ktx:1.5.0")
 
     // Direct Gemini API approach using OkHttp (more reliable than Firebase AI Logic for now)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0") {
+        exclude(group = "com.google.auto.value")
+    }
     
     // Kotlinx Serialization for JSON parsing
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
